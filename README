@@ -1,4 +1,4 @@
---- Run `hpc-hadoop-mapreduce --help' for the most up-to-date version of this. ---
+(Run `hpc-hadoop-mapreduce --help' for the most up-to-date version of this.)
 
 NAME
     hpc-hadoop-mapreduce - a wrapper for running hadoop mapreduce on HPC clusters
