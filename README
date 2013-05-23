@@ -1,0 +1,177 @@
+NAME
+    hpc-hadoop-mapreduce - a wrapper for running hadoop mapreduce on HPC clusters
+
+SYNOPSIS
+    hpc-hadoop-mapreduce [OPTIONS] hadoop jar JARFILE ...
+
+DESCRIPTION
+    There are two main purposes for this script:
+
+        (1) to allow multiple users to run multiple hadoop mapreduce jobs 
+            concurrently, independently, and under the provisions of the 
+            cluster batch job system
+
+        (2) to allow direct i/o to shared network storage -- no HDFS
+    
+    Normally one uses hadoop to manage distributed storage and multiple jobs 
+    using that storage.  Here, these features are not used.  Instead, one uses 
+    this script to submit a hadoop mapreduce computation as a plain, parallel 
+    HPC cluster batch job, and this script starts up its own, independent, 
+    transient hadoop Jobtracker and Tasktracker daemons based upon the compute 
+    resources allocated to it by the batch job system.  Hadoop resources, such 
+    as network ports and temporary files, are configured to be isolated from 
+    other such batch jobs.
+
+    Furthermore, no Hadoop Distributed File System is used.  The transient 
+    mapreduce framework this script builds is configured to do i/o directly 
+    with cluster storage (the current working directory by default, or 
+    --data-dir if given).  This is designed for the case when data resides on a 
+    high-performance, parallel filesystem and one wants to skip the data 
+    stage-in and stage-out steps done in a conventional hadoop workflow.
+
+    The batch job integration currently only works with LSF, but there are 
+    plans to support SLURM, too.
+
+DETAILS
+    This script needs to know where the hadoop and java configuration and 
+    software are installed.  This can be accomplished by setting environment 
+    variables or using command line options (see below for details).
+
+    This script needs to know what filesystem path to use for storage.  This 
+    should be a path to shared, network storage containing all job inputs and 
+    where all job outputs are written.  A directory named `hadoop' is also put 
+    in the root of this location and is used to hold hadoop's shared state and 
+    logs.  By default the current working directory is used; there is the 
+    command line option --data-dir available to use something else.
+
+    Then one just runs hadoop jar etc., prefixed by this script:
+
+        $ hpc-hadoop-mapreduce hadoop jar JARFILE [OPTIONS]
+    
+    If one runs this as an LSF batch job, one should use bsub options -n X for 
+    the number of job slots to use and -R 'span[ptile=Y]' to set the 
+    distribution.
+    
+    Under the hood, this script copies the default `conf' directory from the 
+    hadoop software installation to the current working directory (which may or 
+    may not be the same as the shared storage) and tweaks the configuration so 
+    that each job uses shared storage and runs independently from other jobs.  
+    Specifically, it:
+        
+        * Sets the required JAVA_HOME.
+
+        * Sets fs.default.name to the shared storage (using file:// instead of 
+          hdfs://).
+
+        * Sets mapred.system.dir and mapreduce.jobtracker.staging.root.dir, 
+          which need to be in a location accessible by all hosts, to 
+          `hadoop/mapred/system' and `hadoop/mapred/staging', respectively, 
+          within the shared storage.  (By default, when hdfs is not used, 
+          hadoop uses locations under hadoop.tmp.dir, which are not shared, and 
+          jobs fail.)
+
+        * Sets HADOOP_LOG_DIR to use `hadoop/logs' within the shared storage.  
+          (By default hadoop writes to the software installation area).
+
+        * Finds free ports on which to run the JobTracker and the JobTracker 
+          and TaskTracker http interfaces (mapred.job.tracker, 
+          mapred.job.tracker.http.address, and 
+          mapred.task.tracker.http.address, respectively).  One must view 
+          stdout to see what it picks.
+        
+        * Sets hadoop.tmp.dir to use /tmp/hadoop-${USER}-${jobidstr} where 
+          $jobidstr is a unique identifier (the batch job id or a combination 
+          of time/host/pid).  This keeps each job in its own space rather than 
+          having all under the default /tmp/hadoop-${USER}.
+        
+        * Sets HADOOP_PID_DIR to use hadoop.tmp.dir.  (By default hadoop uses 
+          /tmp, which does not allow for independent trackers to run 
+          simultaneously.)
+    
+    It also decides where and how to run the trackers.  The script takes 
+    different action based upon the presence or absence of specific batch job 
+    system environment variables.  If $LSB_HOSTS, the variable LSF uses to list 
+    the hosts for each processor, is non-empty, it:
+        
+        * Sets slaves to be the unique hosts listed.
+
+        * Sets the maximum tasks per host (mapred.tasktracker.map.tasks.maximum 
+          and mapred.tasktracker.reduce.tasks.maximum) to be number of 
+          appearances of the least-repeated host in $LSB_HOSTS.  (If no hosts 
+          are repeated, then the value is 1.)  Thus, for unbalanced job slot 
+          allocations, this errs on the side of under-utilization so that other 
+          batch jobs are not disturbed.  Instead, one should always specify a 
+          ptile when submitting the batch job so that allocations are even and 
+          fully used.
+        
+          Note that all hosts run the same number of TaskTrackers, including 
+          the master host that is running this script and therefore also 
+          running the JobTracker.
+    
+    Otherwise, the job runs on the localhost with maximum map and reduce tasks 
+    set to 1.
+
+    This script then starts the mapreduce deamons, runs the jobs, stops the 
+    daemons, and removes the temporary directories.
+
+OPTIONS
+    --data-dir PATH
+        The absolute path to the root of the storage used for the job.  This 
+        includes job inputs and outputs, and a directory named `hadoop' will 
+        be created here (if it does not already exist) to hold hadoop's shared 
+        state and logs.
+
+        The default is the current working directory.
+
+    --hadoop-dir PATH
+        The path to the root of the hadoop installation to use.  If not given, 
+        this will use $HADOOP_HOME, if present in the environment.  
+        ($HADOOP_HOME, for hadoop's purposes, is actually deprecated, so this 
+        unsets it before running the job.)
+        
+        Note that the bin subdirectory of this directory is added to the PATH.
+
+        This can be a read-only location (unlike many standard hadoop 
+        examples).
+
+    --java-dir PATH
+        The absolute path to the root of the java installation to use.  If not 
+        given, this will use $JAVA_HOME, if present in the environment.
+
+    --force
+        Overwrite existing things if present (currently this only applies to 
+        the conf directory created in the current working directory).
+
+    -h, --help
+        Print this help.
+
+REQUIREMENTS
+    Hadoop.  This is designed to work with version 1.0.4 and may or may not 
+    work well with other versions.
+
+    Java.  As required by Hadoop.
+
+EXAMPLE
+    #point it at your software installations
+    #(there are alternative command line options for these, but this is arguably simpler)
+    export  HADOOP_HOME=/path/to/hadoop
+    export  JAVA_HOME=/path/to/java
+
+BUGS/TODO
+    * port binding race condition
+    
+      Free ports are found by trial-and-error, and there is a window of time 
+      between choosing the port to use and when trackers start up. It is 
+      possible the port taken by something else in the meantime and the job 
+      will fail.
+
+    * cleanup
+
+      The goal is for all cleanup to be automatic, but what happens when LSF 
+      kills the job has not yet been tested.  It is not known if there is 
+      reasonable time for the exit handlers to complete before LSF forcefully 
+      kills the job.  A post-run script may end up being necessary.
+
+AUTHOR
+    John Brunelle
+    Harvard FAS Research Computing
