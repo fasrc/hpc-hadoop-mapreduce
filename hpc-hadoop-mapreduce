@@ -156,15 +156,58 @@ REQUIREMENTS
     Java.  As required by Hadoop.
 
 EXAMPLE
-    #BSUB -n 4
-    #BSUB -R 'span[ptile=2]'
+    The following runs the grep example that ships with hadoop on the Harvard 
+    FAS RC Odyssey cluster.  This is the mapreduce version of the following 
+    unix pipeline:
 
-    export HADOOP_HOME=/n/sw/hadoop-1.0.4
-    export JAVA_HOME=/n/sw/jdk1.6.0_30
+        $ find input -type f | \\
+          xargs grep -oPh 'mapred|queue' | \\
+          sort | uniq -c | sort -nr
 
-    hpc-hadoop-mapreduce \\
-      hadoop jar \"\$HADOOP_HOME\"/hadoop-examples-*.jar \\
-      grep input output 'mapred|queue'
+    * CD to an empty scratch directory on cluster storage (e.g. your home 
+      directory).
+
+    * Copy in some sample input text files (these are just used a source of 
+      text, the fact that they are from hadoop does not matter):
+
+        $ mkdir -p input
+        $ cp -a /n/sw/hadoop-1.0.4/conf/*.xml input/
+
+    * Create a bsub input file named bsub.in with the following contents:
+
+        #BSUB -q short_parallel
+        #BSUB -o job.out
+        #BSUB -e job.err
+        #BSUB -n 2
+        #BSUB -R 'span[ptile=1]'
+
+        export HADOOP_HOME=/n/sw/hadoop-1.0.4
+        export JAVA_HOME=/n/sw/jdk1.6.0_30
+
+        hpc-hadoop-mapreduce \\
+          hadoop jar \"\$HADOOP_HOME\"/hadoop-examples-*.jar \\
+          grep input output 'mapred|queue'
+
+    * Load the module that provides this script:
+
+        $ module load hpc/rc
+    
+    * Submit the job:
+
+        $ bsub < bsub.in
+    
+    * Wait for the job to finish.
+
+    * Check the job output:
+
+        $ cat output/part-00000
+    
+      It should say something like:
+
+          55      queue
+          24      mapred
+    
+      which should match the output of the shell pipeline above.
 
 BUGS/TODO
     * port binding race condition
