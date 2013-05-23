@@ -159,10 +159,12 @@ EXAMPLE
     #BSUB -n 4
     #BSUB -R 'span[ptile=2]'
 
-    export  HADOOP_HOME=/path/to/hadoop
-    export  JAVA_HOME=/path/to/java
+    export HADOOP_HOME=/n/sw/hadoop-1.0.4
+    export JAVA_HOME=/n/sw/jdk1.6.0_30
 
-    hpc-hadoop-mapreduce hadoop jar \"\$HADOOP_HOME\"/hadoop-examples-*.jar grep input output 'mapred|queue'
+    hpc-hadoop-mapreduce \
+      hadoop jar \"\$HADOOP_HOME\"/hadoop-examples-*.jar \
+      grep input output 'mapred|queue'
 
 BUGS/TODO
     * port binding race condition
