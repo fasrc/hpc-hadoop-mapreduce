@@ -36,6 +36,8 @@ DESCRIPTION
     The batch job integration currently only works with LSF, but there are 
     plans to support SLURM, too.
 
+    See the \`EXAMPLE' section below for specific usage directions.
+
 DETAILS
     This script needs to know where the hadoop and java configuration and 
     software are installed.  This can be accomplished by setting environment 
