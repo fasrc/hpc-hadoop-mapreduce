@@ -1,3 +1,5 @@
+(Run `hpc-hadoop-mapreduce --help' for the most up-to-date version of this.)
+
 NAME
     hpc-hadoop-mapreduce - a wrapper for running hadoop mapreduce on HPC clusters
 
@@ -152,18 +154,21 @@ REQUIREMENTS
     Java.  As required by Hadoop.
 
 EXAMPLE
-    #point it at your software installations
-    #(there are alternative command line options for these, but this is arguably simpler)
+    #BSUB -n 4
+    #BSUB -R 'span[ptile=2]'
+
     export  HADOOP_HOME=/path/to/hadoop
     export  JAVA_HOME=/path/to/java
+
+    hpc-hadoop-mapreduce hadoop jar "$HADOOP_HOME"/hadoop-examples-*.jar grep input output 'mapred|queue'
 
 BUGS/TODO
     * port binding race condition
     
       Free ports are found by trial-and-error, and there is a window of time 
       between choosing the port to use and when trackers start up. It is 
-      possible the port taken by something else in the meantime and the job 
-      will fail.
+      possible the port will taken by something else in the meantime and the 
+      job will fail.
 
     * cleanup
 
