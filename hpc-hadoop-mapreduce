@@ -6,7 +6,7 @@ NAME
     hpc-hadoop-mapreduce - a wrapper for running hadoop mapreduce on HPC clusters
 
 SYNOPSIS
-    hpc-hadoop-mapreduce [OPTIONS] hadoop jar JARFILE ...
+    hpc-hadoop-mapreduce [OPTIONS] -- hadoop jar JARFILE ...
 
 DESCRIPTION
     There are two main purposes for this script:
@@ -52,7 +52,7 @@ DETAILS
 
     Then one just runs hadoop jar etc., prefixed by this script:
 
-        $ hpc-hadoop-mapreduce hadoop jar JARFILE [OPTIONS]
+        $ hpc-hadoop-mapreduce -- hadoop jar JARFILE [OPTIONS]
     
     If one runs this as an LSF batch job, one should use bsub options -n X for 
     the number of job slots to use and -R 'span[ptile=Y]' to set the 
