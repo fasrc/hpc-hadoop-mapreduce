@@ -16,7 +16,7 @@ DESCRIPTION
             cluster batch job system
 
         (2) to allow direct i/o to shared network storage -- no HDFS
-    
+
     Normally one uses hadoop to manage distributed storage and multiple jobs 
     using that storage.  Here, these features are not used.  Instead, one uses 
     this script to submit a hadoop mapreduce computation as a plain, parallel 
@@ -53,17 +53,17 @@ DETAILS
     Then one just runs hadoop jar etc., prefixed by this script:
 
         $ hpc-hadoop-mapreduce -- hadoop jar JARFILE [OPTIONS]
-    
+
     If one runs this as an LSF batch job, one should use bsub options -n X for 
     the number of job slots to use and -R 'span[ptile=Y]' to set the 
     distribution.
-    
+
     Under the hood, this script copies the default \`conf' directory from the 
     hadoop software installation to the current working directory (which may or 
     may not be the same as the shared storage) and tweaks the configuration so 
     that each job uses shared storage and runs independently from other jobs.  
     Specifically, it:
-        
+
         * Sets the required JAVA_HOME.
 
         * Sets fs.default.name to the shared storage (using file:// instead of 
@@ -84,21 +84,21 @@ DETAILS
           mapred.job.tracker.http.address, and 
           mapred.task.tracker.http.address, respectively).  One must view 
           stdout to see what it picks.
-        
+
         * Sets hadoop.tmp.dir to use /tmp/hadoop-\${USER}-\${jobidstr} where 
           \$jobidstr is a unique identifier (the batch job id or a combination 
           of time/host/pid).  This keeps each job in its own space rather than 
           having all under the default /tmp/hadoop-\${USER}.
-        
+
         * Sets HADOOP_PID_DIR to use hadoop.tmp.dir.  (By default hadoop uses 
           /tmp, which does not allow for independent trackers to run 
           simultaneously.)
-    
+
     It also decides where and how to run the trackers.  The script takes 
     different action based upon the presence or absence of specific batch job 
     system environment variables.  If \$LSB_HOSTS, the variable LSF uses to list 
     the hosts for each processor, is non-empty, it:
-        
+
         * Sets slaves to be the unique hosts listed.
 
         * Sets the maximum tasks per host (mapred.tasktracker.map.tasks.maximum 
@@ -109,11 +109,11 @@ DETAILS
           batch jobs are not disturbed.  Instead, one should always specify a 
           ptile when submitting the batch job so that allocations are even and 
           fully used.
-        
+
           Note that all hosts run the same number of TaskTrackers, including 
           the master host that is running this script and therefore also 
           running the JobTracker.
-    
+
     Otherwise, the job runs on the localhost with maximum map and reduce tasks 
     set to 1.
 
@@ -134,7 +134,7 @@ OPTIONS
         this will use \$HADOOP_HOME, if present in the environment.  
         (\$HADOOP_HOME, for hadoop's purposes, is actually deprecated, so this 
         unsets it before running the job.)
-        
+
         Note that the bin subdirectory of this directory is added to the PATH.
 
         This can be a read-only location (unlike many standard hadoop 
@@ -166,6 +166,8 @@ EXAMPLE
           xargs grep -oPh 'mapred|queue' | \\
           sort | uniq -c | sort -nr
 
+    where input is a directory containing text files.
+
     * CD to an empty scratch directory on cluster storage (e.g. your home 
       directory).
 
@@ -193,27 +195,27 @@ EXAMPLE
     * Load the module that provides this script:
 
         $ module load hpc/rc
-    
+
     * Submit the job:
 
         $ bsub < bsub.in
-    
+
     * Wait for the job to finish.
 
     * Check the job output:
 
         $ cat output/part-00000
-    
+
       It should say something like:
 
           55      queue
           24      mapred
-    
+
       which should match the output of the shell pipeline above.
 
 BUGS/TODO
     * port binding race condition
-    
+
       Free ports are found by trial-and-error, and there is a window of time 
       between choosing the port to use and when trackers start up. It is 
       possible the port will taken by something else in the meantime and the 
@@ -471,7 +473,7 @@ cat > conf/mapred-site.xml <<EOF
 		<name>mapred.task.tracker.http.address</name>
 		<value>0.0.0.0:$task_tracker_http_port</value>
 	</property>
-	
+
 	<property>
 		<name>mapred.system.dir</name>
 		<value>\${fs.default.name}/hadoop/mapred/system</value>
@@ -480,7 +482,7 @@ cat > conf/mapred-site.xml <<EOF
 		<name>mapreduce.jobtracker.staging.root.dir</name>
 		<value>\${fs.default.name}/hadoop/mapred/staging</value>
 	</property>
-	
+
 	<property>
 		<name>mapred.tasktracker.map.tasks.maximum</name>
 		<value>$max_tasks_per_host</value>
