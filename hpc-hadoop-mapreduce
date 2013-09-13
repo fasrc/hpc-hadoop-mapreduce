@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+
+# Copyright (c) 2013
+# Harvard FAS Research Computing
+# John Brunelle <john_brunelle@harvard.edu>
+# All right reserved.
+
 set -e
 
 helpstr="\
@@ -229,8 +235,10 @@ BUGS/TODO
       kills the job.  A post-run script may end up being necessary.
 
 AUTHOR
-    John Brunelle
+    Copyright (c) 2013
     Harvard FAS Research Computing
+    John Brunelle <john_brunelle@harvard.edu>
+    All right reserved.
 "
 
 function log() {
