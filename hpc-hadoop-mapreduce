@@ -437,7 +437,7 @@ fi
 rsync -a --delete "$hadoop_dir"/conf/ conf/
 
 #set JAVA_HOME
-sed -i 's?# export JAVA_HOME=/usr/lib/j2sdk1.5-sun?JAVA_HOME='"$java_dir"'?' conf/hadoop-env.sh
+sed -i 's?# export JAVA_HOME=.*?JAVA_HOME='"$java_dir"'?' conf/hadoop-env.sh
 
 #set HADOOP_LOG_DIR
 sed -i 's?# export HADOOP_LOG_DIR=${HADOOP_HOME}/logs?export HADOOP_LOG_DIR='"$data_dir"'/hadoop/logs?' conf/hadoop-env.sh
