@@ -9,7 +9,7 @@ set -e
 
 helpstr="\
 NAME
-    hpc-hadoop-mapreduce - a wrapper for running hadoop mapreduce on HPC clusters
+    hpc-hadoop-mapreduce - run hadoop mapreduce on HPC clusters
 
 SYNOPSIS
     hpc-hadoop-mapreduce [OPTIONS] -- hadoop jar JARFILE ...
@@ -27,7 +27,7 @@ DESCRIPTION
     using that storage.  Here, these features are not used.  Instead, one uses 
     this script to submit a hadoop mapreduce computation as a plain, parallel 
     HPC cluster batch job, and this script starts up its own, independent, 
-    transient hadoop Jobtracker and Tasktracker daemons based upon the compute 
+    transient hadoop JobTracker and TaskTracker daemons based upon the compute 
     resources allocated to it by the batch job system.  Hadoop resources, such 
     as network ports and temporary files, are configured to be isolated from 
     other such batch jobs.
@@ -39,8 +39,9 @@ DESCRIPTION
     high-performance, parallel filesystem and one wants to skip the data 
     stage-in and stage-out steps done in a conventional hadoop workflow.
 
-    The batch job integration currently only works with LSF, but there are 
-    plans to support SLURM, too.
+    The batch job integration currently works with SLURM and LSF and is 
+    determined by the presence of the associated environment variables (SLURM 
+    is checked for first).
 
     See the \`EXAMPLE' section below for specific usage directions.
 
@@ -60,9 +61,10 @@ DETAILS
 
         $ hpc-hadoop-mapreduce -- hadoop jar JARFILE [OPTIONS]
 
-    If one runs this as an LSF batch job, one should use bsub options -n X for 
-    the number of job slots to use and -R 'span[ptile=Y]' to set the 
-    distribution.
+    If one runs this as a batch job, one should use options to set an even 
+    distribution of job slots per host.  For SLURM, use something like -n X for 
+    the number of job slots and --ntasks-per-node=Y for the distribution.  For 
+    LSF, use something like -n X and -R 'span[ptile=Y]'.
 
     Under the hood, this script copies the default \`conf' directory from the 
     hadoop software installation to the current working directory (which may or 
@@ -102,19 +104,26 @@ DETAILS
 
     It also decides where and how to run the trackers.  The script takes 
     different action based upon the presence or absence of specific batch job 
-    system environment variables.  If \$LSB_HOSTS, the variable LSF uses to list 
-    the hosts for each processor, is non-empty, it:
+    system environment variables.  If \$SLURM_JOB_NODELIST, the variable SLURM 
+    uses to list the hosts allocated to the job, or \$LSB_HOSTS, the variable 
+    LSF uses, is non-empty, this:
 
         * Sets slaves to be the unique hosts listed.
 
         * Sets the maximum tasks per host (mapred.tasktracker.map.tasks.maximum 
-          and mapred.tasktracker.reduce.tasks.maximum) to be number of 
-          appearances of the least-repeated host in \$LSB_HOSTS.  (If no hosts 
-          are repeated, then the value is 1.)  Thus, for unbalanced job slot 
-          allocations, this errs on the side of under-utilization so that other 
-          batch jobs are not disturbed.  Instead, one should always specify a 
-          ptile when submitting the batch job so that allocations are even and 
-          fully used.
+          and mapred.tasktracker.reduce.tasks.maximum).
+
+          For SLURM, this is taken from the environment variable 
+          \$SLURM_NTASKS_PER_NODE.  If the variable is not present, the maximum 
+          tasks per host is set to 1.
+
+          For LSF, this is set to the number of appearances of the 
+          least-repeated host in \$LSB_HOSTS.
+
+          Thus, for unbalanced job slot allocations, this errs on the side of 
+          under-utilization so that other batch jobs are not disturbed.  
+          Instead, one should always specify a ntasks-per-node or ptile when 
+          submitting the batch job so that allocations are even and fully used.
 
           Note that all hosts run the same number of TaskTrackers, including 
           the master host that is running this script and therefore also 
@@ -169,7 +178,7 @@ EXAMPLE
     unix pipeline:
 
         $ find input -type f | \\
-          xargs grep -oPh 'mapred|queue' | \\
+          xargs grep -oPh 'a|the' | \\
           sort | uniq -c | sort -nr
 
     where input is a directory containing text files.
@@ -183,28 +192,34 @@ EXAMPLE
         $ mkdir -p input
         $ cp -a /n/sw/hadoop-1.0.4/conf/*.xml input/
 
-    * Create a bsub input file named bsub.in with the following contents:
+    * Create a job definition file named job.batch with the following contents 
+      (if using LSF, use \"-R 'span[ptile=2]'\" instead of 
+      --ntasks-per-node=2, among other things):
 
-        #BSUB -q short_parallel
-        #BSUB -o job.out
-        #BSUB -e job.err
-        #BSUB -n 2
-        #BSUB -R 'span[ptile=1]'
+        #!/usr/bin/env bash
+
+        #SBATCH -p general
+        #SBATCH -t 5
+        #SBATCH --mem 300
+        #SBATCH -o job.out
+        #SBATCH -e job.err
+        #SBATCH -n 6
+        #SBATCH --ntasks-per-node=2
 
         export HADOOP_HOME=/n/sw/hadoop-1.0.4
         export JAVA_HOME=/n/sw/jdk1.6.0_30
 
         hpc-hadoop-mapreduce \\
           hadoop jar \"\$HADOOP_HOME\"/hadoop-examples-*.jar \\
-          grep input output 'mapred|queue'
+          grep input output 'a|the'
 
     * Load the module that provides this script:
 
         $ module load hpc/rc
 
-    * Submit the job:
+    * Submit the job (if using LSF, use \"bsub < job.batch\"):
 
-        $ bsub < bsub.in
+        $ sbatch job.batch
 
     * Wait for the job to finish.
 
@@ -212,10 +227,10 @@ EXAMPLE
 
         $ cat output/part-00000
 
-      It should say something like:
+      It should give the following word counts:
 
-          55      queue
-          24      mapred
+          841     a
+          92      the
 
       which should match the output of the shell pipeline above.
 
@@ -229,10 +244,11 @@ BUGS/TODO
 
     * cleanup
 
-      The goal is for all cleanup to be automatic, but what happens when LSF 
-      kills the job has not yet been tested.  It is not known if there is 
-      reasonable time for the exit handlers to complete before LSF forcefully 
-      kills the job.  A post-run script may end up being necessary.
+      The goal is for all cleanup to be automatic, but what happens when the 
+      batch job master kills the job has not yet been tested.  It is not known 
+      if there is reasonable time for the exit handlers to complete before the 
+      batch job master forcefully kills the job.  A post-run script may end up 
+      being necessary.
 
 AUTHOR
     Copyright (c) 2013
@@ -288,7 +304,9 @@ while [ ! -z "$1" ]; do
 done
 
 #jobidstr is meant to be a cluster-wide unique identifer
-if [ -n "$LSB_JOBID" ]; then
+if [ -n "$SLURM_JOB_ID" ]; then
+	jobidstr="$SLURM_JOB_ID"
+elif [ -n "$LSB_JOBID" ]; then
 	jobidstr="$LSB_JOBID"
 else
 	jobidstr="$(date '+%Y-%m-%d_%H:%M:%S')_$(hostname -s)_"$$
@@ -428,7 +446,9 @@ sed -i 's?# export HADOOP_LOG_DIR=${HADOOP_HOME}/logs?export HADOOP_LOG_DIR='"$d
 sed -i 's?# export HADOOP_PID_DIR=/var/hadoop/pids?export HADOOP_PID_DIR='"$hadoop_tmp_dir"'?' conf/hadoop-env.sh
 
 #set slaves
-if [ -n "${LSB_HOSTS:-}" ]; then
+if [ -n "${SLURM_JOB_NODELIST:-}" ]; then
+	scontrol show hostname "$SLURM_JOB_NODELIST" | sort | uniq > conf/slaves  #(uniq is not be necessary, it's here just in case things change)
+elif [ -n "${LSB_HOSTS:-}" ]; then
 	echo "$LSB_HOSTS" | tr ' ' '\n' | sort | uniq > conf/slaves
 else
 	echo "localhost" > conf/slaves
@@ -436,11 +456,14 @@ fi
 log "using hosts $(cat conf/slaves | tr '\n' ',' | sed 's/,$//')"
 
 #set max parallel processes per host
-if [ -n "${LSB_HOSTS:-}" ]; then
+if [ -n "${SLURM_NTASKS_PER_NODE:-}" ]; then
+	max_tasks_per_host="$SLURM_NTASKS_PER_NODE"
+elif [ -n "${LSB_HOSTS:-}" ]; then
 	max_tasks_per_host="$(echo "$LSB_HOSTS" | tr ' ' '\n' | sort | uniq -c | awk '{print $1}' | sort -n | head -n 1)"
 else
 	max_tasks_per_host=1
 fi
+log "using max_tasks_per_host $max_tasks_per_host"
 
 #core config
 cat > conf/core-site.xml <<EOF
@@ -507,7 +530,7 @@ EOF
 
 while read h; do
 	log "checking that prompt-less, password-less ssh works to host $h"  #(this doesn't check the full graph)
-	if ! ssh -o StrictHostKeyChecking=yes "$h" true </dev/null &>/dev/null; then
+	if ! ssh -o PreferredAuthentications=gssapi-with-mic,hostbased,publickey -o StrictHostKeyChecking=yes "$h" true </dev/null &>/dev/null; then
 		echo "*** ERROR *** unable to ssh cleanly to host $h"
 		exit 1
 	fi
